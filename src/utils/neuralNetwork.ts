@@ -140,7 +140,7 @@ export class NeuralNetwork {
     });
   }
 
-  // Обучение на паре вопрос-ответ
+  // Обучение на паре вопрос-ответ с отслеживанием прогресса
   public train(question: string, answer: string): void {
     const questionVector = this.vectorize(question);
     const answerVector = this.vectorize(answer);
@@ -154,10 +154,35 @@ export class NeuralNetwork {
     // Обучение
     const prediction = this.forward(questionVector);
     this.backward(questionVector, target, prediction);
+    
+    // Обновляем словарь новыми токенами
+    this.updateVocabulary([question, answer]);
   }
 
-  // Генерация ответа с использованием NLP
+  // Обновление словаря новыми словами
+  private updateVocabulary(texts: string[]): void {
+    const newTokens = texts.flatMap(text => this.tokenize(text));
+    
+    newTokens.forEach(token => {
+      if (!this.vocabulary.has(token) && this.vocabulary.size < this.vocabSize) {
+        this.vocabulary.set(token, this.vocabulary.size);
+      }
+    });
+  }
+
+  // Улучшенная генерация ответа с использованием NLP
   public generateResponse(question: string, nlp?: any): string {
+    // Используем NLP для более умного ответа
+    if (nlp) {
+      const messageType = nlp.analyzeMessageType(question);
+      const topic = nlp.detectTopic(question);
+      const emotionalTone = nlp.analyzeEmotionalTone(question);
+      
+      // Генерируем контекстный ответ без повторяющихся слов
+      return nlp.generateContextualResponse(question, topic, messageType);
+    }
+
+    // Если NLP недоступен, используем простую логику
     const questionVector = this.vectorize(question);
     const { output } = this.forward(questionVector);
     
@@ -165,7 +190,7 @@ export class NeuralNetwork {
     const topIndices = output
       .map((prob, index) => ({ prob, index }))
       .sort((a, b) => b.prob - a.prob)
-      .slice(0, 5)
+      .slice(0, 3)
       .map(item => item.index);
 
     // Преобразуем обратно в слова
@@ -174,28 +199,12 @@ export class NeuralNetwork {
     
     topIndices.forEach(index => {
       const word = reverseVocab.get(index);
-      if (word && word !== '<UNK>') {
+      if (word && word !== '<UNK>' && word.length > 2) {
         words.push(word);
       }
     });
 
-    // Используем NLP для более умного ответа
-    if (nlp) {
-      const messageType = nlp.analyzeMessageType(question);
-      const topic = nlp.detectTopic(question);
-      const emotionalTone = nlp.analyzeEmotionalTone(question);
-      
-      // Генерируем контекстный ответ
-      const contextualResponse = nlp.generateContextualResponse(question, topic, messageType);
-      
-      if (words.length > 0) {
-        return `${contextualResponse} Также связываю это с: ${words.join(', ')}.`;
-      }
-      
-      return contextualResponse;
-    }
-
-    // Формируем ответ без NLP
+    // Формируем ответ
     if (words.length === 0) {
       return 'Обучаюсь на вашем сообщении... Задайте ещё вопросы для улучшения качества ответов.';
     }
@@ -224,6 +233,19 @@ export class NeuralNetwork {
     );
     const totalBiases = this.biases.reduce((sum, layer) => sum + layer.length, 0);
     return (totalWeights + totalBiases) / 1000; // Размер в KB
+  }
+
+  // Оценка качества нейросети
+  public getQualityScore(): number {
+    // Базовая оценка от 0 до 1
+    const vocabRatio = Math.min(this.vocabulary.size / this.vocabSize, 1);
+    const sizeRatio = Math.min(this.getNetworkSize() / 5, 1);
+    
+    // Комбинированная оценка
+    const qualityScore = (vocabRatio * 0.6 + sizeRatio * 0.4);
+    
+    // Возвращаем в диапазоне 0.001 - 0.95
+    return Math.max(0.001, Math.min(0.95, qualityScore));
   }
 
   // Сохранение модели
