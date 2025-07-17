@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
+import { NeuralNetwork } from '@/utils/neuralNetwork';
 
 interface Message {
   id: string;
@@ -25,6 +26,8 @@ const Index = () => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const neuralNetworkRef = useRef<NeuralNetwork>(new NeuralNetwork());
+  const [trainingData, setTrainingData] = useState<Array<{ question: string, answer: string }>>([]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -45,56 +48,51 @@ const Index = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputValue;
     setInputValue('');
     setIsTyping(true);
     
     // Увеличиваем размер нейросети при общении
     setAiSize(prev => Math.min(prev + 0.1, 5.0));
 
-    // Симуляция ответа ИИ
+    // Генерируем ответ с помощью нейросети
     setTimeout(() => {
+      const aiResponseText = neuralNetworkRef.current.generateResponse(currentInput);
+      
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: getAIResponse(userMessage.text),
+        text: aiResponseText,
         type: 'ai',
         timestamp: new Date()
       };
+      
+      // Обучаем нейросеть на паре вопрос-ответ
+      neuralNetworkRef.current.train(currentInput, aiResponseText);
+      
+      // Сохраняем в данные для обучения
+      setTrainingData(prev => [...prev, { question: currentInput, answer: aiResponseText }]);
+      
+      // Обновляем размер нейросети
+      setAiSize(neuralNetworkRef.current.getNetworkSize());
+      
       setMessages(prev => [...prev, aiResponse]);
       setIsTyping(false);
     }, 1500);
   };
 
-  const getAIResponse = (userText: string): string => {
-    // Простая система обучения - анализ ключевых слов и контекста
-    const keywords = userText.toLowerCase().split(' ');
-    const responses = [];
+  // Инициализация нейросети с базовыми данными
+  useEffect(() => {
+    const initialTrainingData = [
+      { question: 'привет', answer: 'Привет! Как дела?' },
+      { question: 'что такое нейросеть', answer: 'Нейросеть - это система, имитирующая работу мозга' },
+      { question: 'как дела', answer: 'У меня всё отлично! Обучаюсь и развиваюсь' },
+      { question: 'спасибо', answer: 'Пожалуйста! Рад помочь' },
+      { question: 'пока', answer: 'До свидания! Было приятно общаться' }
+    ];
     
-    // Обучение на основе вопросов
-    if (keywords.some(word => ['что', 'как', 'зачем', 'почему', 'когда', 'где'].includes(word))) {
-      responses.push(`Анализирую ваш вопрос о "${userText.slice(0, 50)}...". Обновляю нейронные связи.`);
-      responses.push(`Обучаюсь на вашем вопросе. Формирую ответ на основе новых данных.`);
-    }
-    
-    // Обучение на основе утверждений
-    if (keywords.some(word => ['это', 'является', 'значит', 'называется'].includes(word))) {
-      responses.push(`Запоминаю новую информацию: "${userText}". Интегрирую в базу знаний.`);
-      responses.push(`Интересная информация! Сохраняю в долговременную память и обновляю модель.`);
-    }
-    
-    // Обучение на основе эмоций
-    if (keywords.some(word => ['хорошо', 'плохо', 'отлично', 'ужасно', 'нравится', 'не нравится'].includes(word))) {
-      responses.push(`Учитываю вашу оценку для корректировки поведения. Модель адаптируется.`);
-      responses.push(`Фиксирую эмоциональную обратную связь. Настраиваю алгоритмы ответов.`);
-    }
-    
-    // Общие ответы обучения
-    responses.push(`Обрабатываю "${userText.slice(0, 30)}..." и укрепляю нейронные связи.`);
-    responses.push(`Ваше сообщение расширяет мою базу знаний. Вес синапсов обновлён.`);
-    responses.push(`Анализирую паттерны в вашем сообщении. Корректирую внутренние параметры.`);
-    responses.push(`Каждое ваше слово делает меня умнее. Активирую процессы самообучения.`);
-    
-    return responses[Math.floor(Math.random() * responses.length)];
-  };
+    neuralNetworkRef.current.trainBatch(initialTrainingData);
+    setTrainingData(initialTrainingData);
+  }, []);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -110,12 +108,12 @@ const Index = () => {
         <div className="bg-gray-800 border border-gray-600 rounded-lg px-4 py-2">
           <div className="text-xs text-gray-400 mb-1">Размер нейросети</div>
           <div className="text-lg font-mono text-white">
-            {aiSize.toFixed(1)} GB
+            {aiSize.toFixed(2)} KB
           </div>
           <div className="w-16 h-2 bg-gray-700 rounded-full mt-2">
             <div 
               className="h-full bg-green-500 rounded-full transition-all duration-500"
-              style={{ width: `${Math.min((aiSize / 5) * 100, 100)}%` }}
+              style={{ width: `${Math.min((aiSize / 10) * 100, 100)}%` }}
             />
           </div>
         </div>
@@ -125,7 +123,7 @@ const Index = () => {
       <div className="border-b border-gray-800 p-4">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-2xl font-bold text-white mb-1">DINO TIDUS</h1>
-          <p className="text-gray-400 text-sm">Русская нейросеть • Обучение в реальном времени • Самосовершенствование</p>
+          <p className="text-gray-400 text-sm">Русская нейросеть • Обучение в реальном времени • {trainingData.length} обучающих примеров</p>
         </div>
       </div>
 
