@@ -156,8 +156,8 @@ export class NeuralNetwork {
     this.backward(questionVector, target, prediction);
   }
 
-  // Генерация ответа
-  public generateResponse(question: string): string {
+  // Генерация ответа с использованием NLP
+  public generateResponse(question: string, nlp?: any): string {
     const questionVector = this.vectorize(question);
     const { output } = this.forward(questionVector);
     
@@ -179,7 +179,23 @@ export class NeuralNetwork {
       }
     });
 
-    // Формируем ответ
+    // Используем NLP для более умного ответа
+    if (nlp) {
+      const messageType = nlp.analyzeMessageType(question);
+      const topic = nlp.detectTopic(question);
+      const emotionalTone = nlp.analyzeEmotionalTone(question);
+      
+      // Генерируем контекстный ответ
+      const contextualResponse = nlp.generateContextualResponse(question, topic, messageType);
+      
+      if (words.length > 0) {
+        return `${contextualResponse} Также связываю это с: ${words.join(', ')}.`;
+      }
+      
+      return contextualResponse;
+    }
+
+    // Формируем ответ без NLP
     if (words.length === 0) {
       return 'Обучаюсь на вашем сообщении... Задайте ещё вопросы для улучшения качества ответов.';
     }
